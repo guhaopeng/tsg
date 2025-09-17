@@ -18,7 +18,7 @@ from transformers import (
     CLIPTextModelWithProjection,
     Dinov2Model,
 )
-from ..inference_utils import hierarchical_extract_geometry, flash_extract_geometry
+from ..inference_utils import hierarchical_extract_geometry, flash_extract_geometry, voxelize_geometry
 
 from ..models.autoencoders import TripoSGVAEModel
 from ..models.transformers import TripoSGDiTModel
@@ -188,9 +188,9 @@ class TripoSGScribblePipeline(DiffusionPipeline, TransformerDiffusionMixin):
     def __call__(
         self,
         image: PipelineImageInput,
-        prompt: str,
-        num_tokens: int = 512,
+        prompt: Union[str, List[str]] = None,
         num_inference_steps: int = 50,
+        num_tokens: int = 2048,
         timesteps: List[int] = None,
         guidance_scale: float = 7.0,
         num_shapes_per_prompt: int = 1,
@@ -204,6 +204,9 @@ class TripoSGScribblePipeline(DiffusionPipeline, TransformerDiffusionMixin):
         hierarchical_octree_depth: int = 9,
         flash_octree_depth: int = 9,
         use_flash_decoder: bool = True,
+        use_voxel_output: bool = False,
+        voxel_resolution: int = 32,
+        voxel_sharpness: float = 10.0,
         return_dict: bool = True,
     ):
         self._guidance_scale = guidance_scale
@@ -309,28 +312,51 @@ class TripoSGScribblePipeline(DiffusionPipeline, TransformerDiffusionMixin):
                 ):
                     progress_bar.update()
 
-        # 7. decoder mesh
-        if not use_flash_decoder:
+        # 7. decoder mesh or voxel grid
+        if use_voxel_output:
             geometric_func = lambda x: self.vae.decode(latents, sampled_points=x).sample
-            output = hierarchical_extract_geometry(
+            voxel_grid = voxelize_geometry(
                 geometric_func,
                 device,
                 bounds=bounds,
-                dense_octree_depth=dense_octree_depth,
-                hierarchical_octree_depth=hierarchical_octree_depth,
+                voxel_resolution=voxel_resolution,
+                sharpness=voxel_sharpness,
             )
+            # 为了保持与现有输出格式兼容
+            output = [(None, None)]
+            meshes = [None]
+            
+            if not return_dict:
+                return (output, meshes, voxel_grid)
+            
+            return TripoSGPipelineOutput(samples=output, meshes=meshes, voxel_grid=voxel_grid)
         else:
-            self.vae.set_flash_decoder()
-            output = flash_extract_geometry(
-                latents,
-                self.vae,
-                bounds=bounds,
-                octree_depth=flash_octree_depth,
-            )
-        meshes = [trimesh.Trimesh(mesh_v_f[0].astype(np.float32), mesh_v_f[1]) for mesh_v_f in output]
-        
-        # Offload all models
-        self.maybe_free_model_hooks()
+            if not use_flash_decoder:
+                geometric_func = lambda x: self.vae.decode(latents, sampled_points=x).sample
+                output = hierarchical_extract_geometry(
+                    geometric_func,
+                    device,
+                    bounds=bounds,
+                    dense_octree_depth=dense_octree_depth,
+                    hierarchical_octree_depth=hierarchical_octree_depth,
+                )
+            else:
+                self.vae.set_flash_decoder()
+                output = flash_extract_geometry(
+                    latents,
+                    self.vae,
+                    bounds=bounds,
+                    octree_depth=flash_octree_depth,
+                )
+            meshes = [trimesh.Trimesh(mesh_v_f[0].astype(np.float32), mesh_v_f[1]) for mesh_v_f in output]
+            
+            # Offload all models
+            self.maybe_free_model_hooks()
+
+            if not return_dict:
+                return (output, meshes, None)
+
+            return TripoSGPipelineOutput(samples=output, meshes=meshes, voxel_grid=None)
 
         if not return_dict:
             return (output, meshes)

@@ -477,3 +477,55 @@ def flash_extract_geometry(
         mesh_v_f = (None, None)
 
     return [mesh_v_f]
+
+@torch.no_grad()
+def voxelize_geometry(geometric_func: Callable,
+                     device: torch.device,
+                     bounds: Union[Tuple[float], List[float], float] = (-1.005, -1.005, -1.005, 1.005, 1.005, 1.005),
+                     voxel_resolution: int = 32,
+                     sharpness: float = 10.0,
+                     ) -> torch.Tensor:
+    """
+    将3D形状转换为体素网格表示。
+
+    Args:
+        geometric_func (Callable): 用于查询SDF值的函数
+        device (torch.device): 计算设备
+        bounds (Union[Tuple[float], List[float], float]): 边界框范围
+        voxel_resolution (int): 体素网格的分辨率，默认32x32x32
+        sharpness (float): SDF到密度转换的锐度参数
+
+    Returns:
+        torch.Tensor: 形状为(voxel_resolution, voxel_resolution, voxel_resolution)的体素网格，值在0-1之间
+    """
+    if isinstance(bounds, float):
+        bounds = [-bounds, -bounds, -bounds, bounds, bounds, bounds]
+
+    bbox_min = torch.tensor(bounds[0:3]).to(device)
+    bbox_max = torch.tensor(bounds[3:6]).to(device)
+
+    # 在xyz每个维度上生成均匀分布的点
+    x_range = torch.linspace(bounds[0], bounds[3], voxel_resolution, device=device)
+    y_range = torch.linspace(bounds[1], bounds[4], voxel_resolution, device=device)
+    z_range = torch.linspace(bounds[2], bounds[5], voxel_resolution, device=device)
+
+    # 创建网格坐标 (32, 32, 32, 3)
+    grid_x, grid_y, grid_z = torch.meshgrid(x_range, y_range, z_range, indexing='ij')
+    query_points = torch.stack([grid_x, grid_y, grid_z], dim=-1)
+
+    # 将其重塑为一批点用于网络查询
+    batch_points = query_points.reshape(-1, 3)  # 形状: (32*32*32, 3) = (32768, 3)
+    batch_points = batch_points.unsqueeze(0)    # 添加批次维度 -> (1, 32768, 3)
+
+    # 查询SDF值
+    print(f'Querying {batch_points.shape[1]} points for voxelization...')
+    decoded_sdf = geometric_func(batch_points)
+
+    # 将SDF值转换为密度
+    density_values = torch.sigmoid(-decoded_sdf * sharpness)
+
+    # 重塑为体素网格
+    density_grid = density_values.squeeze(0).squeeze(-1)  # 从 (1, 32768, 1) -> (32768)
+    density_grid = density_grid.reshape(voxel_resolution, voxel_resolution, voxel_resolution)  # -> (32, 32, 32)
+
+    return density_grid
