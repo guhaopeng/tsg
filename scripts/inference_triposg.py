@@ -7,16 +7,17 @@ from typing import Any, Union
 import numpy as np
 import torch
 import trimesh
-from huggingface_hub import snapshot_download
+import pymeshlab
 from PIL import Image
 
+# 添加 scripts 目录到 Python 路径
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+# 添加 tsg 目录到 Python 路径
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from triposg.pipelines.pipeline_triposg import TripoSGPipeline
 from image_process import prepare_image
 from briarmbg import BriaRMBG
-
-import pymeshlab
+from triposg.pipelines.pipeline_triposg import TripoSGPipeline
 
 def mesh_to_pymesh(vertices, faces):
     ms = pymeshlab.MeshSet()

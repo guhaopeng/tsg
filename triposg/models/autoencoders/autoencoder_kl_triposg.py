@@ -403,12 +403,12 @@ class TripoSGVAEModel(ModelMixin, ConfigMixin):
         self, x: torch.Tensor, num_tokens: int = 2048, seed: Optional[int] = None
     ):
         """
-        Sample points from features of the input point cloud.
+        Sample points from features of the input point cloud. 中文：从输入点云的特征中采样点。
 
         Args:
-            x (torch.Tensor): The input point cloud. shape: (B, N, C)
-            num_tokens (int, optional): The number of points to sample. Defaults to 2048.
-            seed (Optional[int], optional): The random seed. Defaults to None.
+            x (torch.Tensor): The input point cloud. shape: (B, N, C) 中文：输入点云，形状为 (B, N, C)，其中 B 是批量大小，N 是点的数量，C 是点的特征维度。
+            num_tokens (int, optional): The number of points to sample. Defaults to 2048. 中文：要采样的点的数量，默认值为 2048。
+            seed (Optional[int], optional): The random seed. Defaults to None. 中文：随机种子，默认值为 None。
         """
         rng = np.random.default_rng(seed)
         indices = rng.choice(

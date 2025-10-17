@@ -20,7 +20,7 @@ def visualize_constraints(density_path):
     ax = fig.add_subplot(111, projection='3d')
     
     # 创建基础体素掩码
-    base_mask = density > 0.1
+    base_mask = density > 0.0
     
     # 找到Y值最小的体素
     min_y = np.min(np.where(base_mask)[1]) if np.any(base_mask) else 0
@@ -103,16 +103,16 @@ def visualize_constraints(density_path):
     ax.set_xlabel('X')
     ax.set_ylabel('Y')
     ax.set_zlabel('Z')
-    ax.set_title('密度场与约束条件可视化')
+    ax.set_title('sensitivity and constraints')
     
     # 添加图例
     from matplotlib.lines import Line2D
     legend_elements = [
-        Line2D([0], [0], marker='s', color='w', markerfacecolor='gray', markersize=10, alpha=0.3, label='密度场'),
-        Line2D([0], [0], marker='s', color='w', markerfacecolor='yellow', markersize=10, alpha=0.8, label=f'Y={min_y}平面体素'),
-        Line2D([0], [0], marker='s', color='w', markerfacecolor='red', markersize=10, alpha=1.0, label=f'座面体素(Y={max_y if "max_y" in locals() else "N/A"})'),
-        Line2D([0], [0], color='pink', alpha=0.2, label='固定约束'),
-        Line2D([0], [0], color='blue', alpha=0.8, label='载荷')
+        Line2D([0], [0], marker='s', color='w', markerfacecolor='gray', markersize=10, alpha=0.3, label='density field'),
+        Line2D([0], [0], marker='s', color='w', markerfacecolor='yellow', markersize=10, alpha=0.8, label=f'Y={min_y} plane voxels'),
+        Line2D([0], [0], marker='s', color='w', markerfacecolor='red', markersize=10, alpha=1.0, label=f'co-planar voxels (Y={max_y if "max_y" in locals() else "N/A"})'),
+        Line2D([0], [0], color='pink', alpha=0.2, label='fixed constraints'),
+        Line2D([0], [0], color='blue', alpha=0.8, label='loads')
     ]
     ax.legend(handles=legend_elements, loc='upper right')
     
@@ -122,5 +122,5 @@ def visualize_constraints(density_path):
     plt.show()
 
 if __name__ == '__main__':
-    density_path = 'd:/TSG/tsg/outputyz_gs10.npy'
+    density_path = 'd:/TSG/tsg/outputyz_steps20.npy'
     visualize_constraints(density_path)
